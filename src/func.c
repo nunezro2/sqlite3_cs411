@@ -1159,6 +1159,22 @@ static void replaceFunc(
 }
 
 /*
+** Implementation of the hello() function.
+*/
+static void helloFunc(
+  sqlite3_context *context,
+  int argc,
+  sqlite3_value **argv
+){
+  const char *msg;
+  msg = sqlite3_mprintf("Hello %s", sqlite3_value_text(argv[0]));
+  
+  sqlite3_result_text(context, msg, strlen(msg), sqlite3_free);
+
+}
+
+
+/*
 ** Implementation of the TRIM(), LTRIM(), and RTRIM() functions.
 ** The userdata is 0x1 for left trim, 0x2 for right trim, 0x3 for both.
 */
@@ -1631,6 +1647,7 @@ void sqlite3RegisterGlobalFunctions(void){
   ** are read-only after initialization is complete.
   */
   static SQLITE_WSD FuncDef aBuiltinFunc[] = {
+    FUNCTION(hello,              1, 0, 0, helloFunc        ),
     FUNCTION(ltrim,              1, 1, 0, trimFunc         ),
     FUNCTION(ltrim,              2, 1, 0, trimFunc         ),
     FUNCTION(rtrim,              1, 2, 0, trimFunc         ),

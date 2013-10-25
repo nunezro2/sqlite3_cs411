@@ -1111,7 +1111,7 @@ configure:12215: $? = 0
 configure:12237: result: yes
 configure:12152: checking for localtime_s
 configure:12208: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/ccSkUxxA.o: In function `main':
+/tmp/ccBWFk0n.o: In function `main':
 /home/nunezro2/git/sqlite3_cs411/conftest.c:74: undefined reference to `localtime_s'
 collect2: ld returned 1 exit status
 configure:12215: $? = 1
@@ -1214,7 +1214,7 @@ configure:12452: checking whether to support threadsafe operation
 configure:12460: result: yes
 configure:12466: checking for library containing pthread_create
 configure:12507: gcc -o conftest -g -O2   conftest.c  >&5
-/tmp/ccPpiTgO.o: In function `main':
+/tmp/ccM7HdhC.o: In function `main':
 /home/nunezro2/git/sqlite3_cs411/conftest.c:53: undefined reference to `pthread_create'
 collect2: ld returned 1 exit status
 configure:12514: $? = 1
@@ -1294,7 +1294,7 @@ configure:12841: WARNING: *** Without Tcl the regression tests cannot be execute
 configure:12843: WARNING: *** Consider using --with-tcl=... to define location of Tcl ***
 configure:12938: checking for library containing tgetent
 configure:12979: gcc -o conftest -g -O2 -DSQLITE_OS_UNIX=1   conftest.c  >&5
-/tmp/cc409aD5.o: In function `main':
+/tmp/cceFWYLQ.o: In function `main':
 /home/nunezro2/git/sqlite3_cs411/conftest.c:53: undefined reference to `tgetent'
 collect2: ld returned 1 exit status
 configure:12986: $? = 1
@@ -1356,7 +1356,7 @@ configure: failed program was:
 |   return 0;
 | }
 configure:12979: gcc -o conftest -g -O2 -DSQLITE_OS_UNIX=1   conftest.c -lreadline   >&5
-/tmp/ccQnp2Oa.o: In function `main':
+/tmp/ccrTTBxX.o: In function `main':
 /home/nunezro2/git/sqlite3_cs411/conftest.c:53: undefined reference to `tgetent'
 collect2: ld returned 1 exit status
 configure:12986: $? = 1
