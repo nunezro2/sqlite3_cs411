@@ -1158,6 +1158,11 @@ static void replaceFunc(
   sqlite3_result_text(context, (char*)zOut, j, sqlite3_free);
 }
 
+
+typedef struct info {
+      int counter;
+} info;
+
 /*
 ** Implementation of the hello() function.
 */
@@ -1166,11 +1171,14 @@ static void helloFunc(
   int argc,
   sqlite3_value **argv
 ){
+  struct info *param;
   const char *msg;
-  msg = sqlite3_mprintf("Hello %s", sqlite3_value_text(argv[0]));
-  
+  printf("sizeof struct info: %d\n", sizeof(*param));
+  param = sqlite3_my_context(context, sizeof(*param));
+  if (param == NULL)
+	printf("param is null!\n");
+  msg = sqlite3_mprintf("Hello %s %d", sqlite3_value_text(argv[0]), param->counter++);  
   sqlite3_result_text(context, msg, strlen(msg), sqlite3_free);
-
 }
 
 

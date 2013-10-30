@@ -168,6 +168,7 @@ struct Mem {
     VdbeFrame *pFrame;  /* Used when flags==MEM_Frame */
   } u;
   int n;              /* Number of characters in string value, excluding '\0' */
+  int myflag;
   u16 flags;          /* Some combination of MEM_Null, MEM_Str, MEM_Dyn, etc. */
   u8  type;           /* One of SQLITE_NULL, SQLITE_TEXT, SQLITE_INTEGER, etc */
   u8  enc;            /* SQLITE_UTF8, SQLITE_UTF16BE, SQLITE_UTF16LE */
@@ -265,6 +266,8 @@ struct sqlite3_context {
   FuncDef *pFunc;       /* Pointer to function information.  MUST BE FIRST */
   Mem s;                /* The return value is stored here */
   Mem *pMem;            /* Memory cell used to store aggregate context */
+  Mem pInfo;
+  int flag;
   CollSeq *pColl;       /* Collating sequence */
   Vdbe *pVdbe;          /* The VM that owns this context */
   int iOp;              /* Instruction number of OP_Function */

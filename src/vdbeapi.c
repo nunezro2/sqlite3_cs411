@@ -582,7 +582,7 @@ void *sqlite3_aggregate_context(sqlite3_context *p, int nByte){
   pMem = p->pMem;
   testcase( nByte<0 );
   if( (pMem->flags & MEM_Agg)==0 ){
-    if( nByte<=0 ){
+     if( nByte<=0 ){
       sqlite3VdbeMemReleaseExternal(pMem);
       pMem->flags = MEM_Null;
       pMem->z = 0;
@@ -597,6 +597,48 @@ void *sqlite3_aggregate_context(sqlite3_context *p, int nByte){
   }
   return (void*)pMem->z;
 }
+
+
+void *sqlite3_my_context(sqlite3_context *p, int nByte){
+  
+  printf("context: %p\n", p); 
+  Mem *pInfo;
+  //assert( p && p->pFunc && p->pFunc->xStep );
+  ///assert( sqlite3_mutex_held(p->s.db->mutex) );
+  pInfo = &(p->pInfo);
+  printf("pInfo: %p\n", pInfo);
+  //testcase( nByte<0 );
+  if(pInfo == NULL)
+	 printf("pInfo is null\n");
+  //printf("p->flag: %d\n", p->flag);
+  //printf("pInfo->myflag: %d\n", pInfo->myflag);
+  printf("pInfo-flags: %d\n", pInfo->flags);
+  if( pInfo->myflag == 0 ){
+    //if( nByte<=0 ){
+    //  sqlite3VdbeMemReleaseExternal(pInfo);
+    //  pMem->flags = MEM_Null;
+      //pInfo->z = 0;
+    //}else{
+      sqlite3VdbeMemGrow(pInfo, nByte, 0);
+      p->flag = 1;
+      pInfo->myflag = 1;
+      printf("pInfo->flags: %d\n", pInfo->flags);
+      pInfo->flags = MEM_Agg;
+      printf("pInfo->flags: %d\n", pInfo->flags);
+      //printf("p->flag: %d\n", p->flag);
+      //printf("pInfo->myflag: %d\n", pInfo->myflag);
+      //pInfo->u.pDef = p->pFunc;
+      if (pInfo->z == NULL)
+	printf("pInfo->z is null\n");
+      if( pInfo->z ){
+        memset(pInfo->z, 0, nByte);
+      }
+    //}
+  }
+  printf("pInfo->n %d of nByte %d\n", pInfo->n, nByte);
+  return (void*)pInfo->z;
+}
+
 
 /*
 ** Return the auxilary data pointer, if any, for the iArg'th argument to
