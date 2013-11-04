@@ -52,6 +52,7 @@ Select *sqlite3SelectNew(
   ExprList *pEList,     /* which columns to include in the result */
   SrcList *pSrc,        /* the FROM clause -- which tables to scan */
   Expr *pWhere,         /* the WHERE clause */
+  ExprList *pClusterBy,   /* the CLUSTER BY clause */
   ExprList *pGroupBy,   /* the GROUP BY clause */
   Expr *pHaving,        /* the HAVING clause */
   ExprList *pOrderBy,   /* the ORDER BY clause */
@@ -71,6 +72,20 @@ Select *sqlite3SelectNew(
   }
   if( pEList==0 ){
     pEList = sqlite3ExprListAppend(pParse, 0, sqlite3Expr(db,TK_ALL,0));
+  }
+
+  if (pClusterBy != 0)
+  {
+	  printf("Number of expressions in the list: %d\n", pClusterBy->nExpr);
+	  int i = 0;
+	  for (i = 0; i < pClusterBy->nExpr; i++) {
+		  if (pClusterBy->a[i].pExpr) {
+			  if (pClusterBy->a[i].pExpr->flags == 1024)
+				  printf("Expression %d: %d\n", i, pClusterBy->a[i].pExpr->u.iValue);
+			  else
+				  printf("Expression %d: %s\n", i, pClusterBy->a[i].pExpr->u.zToken);
+		  }
+	  }
   }
   pNew->pEList = pEList;
   if( pSrc==0 ) pSrc = sqlite3DbMallocZero(db, sizeof(*pSrc));

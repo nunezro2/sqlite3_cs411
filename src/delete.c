@@ -109,7 +109,7 @@ void sqlite3MaterializeView(
     assert( pFrom->a[0].pUsing==0 );
   }
 
-  pSel = sqlite3SelectNew(pParse, 0, pFrom, pWhere, 0, 0, 0, 0, 0, 0);
+  pSel = sqlite3SelectNew(pParse, 0, pFrom, pWhere, 0, 0, 0, 0, 0, 0, 0); // Changes to include CLUSTER BY, passing NULL Pointer
   if( pSel ) pSel->selFlags |= SF_Materialize;
 
   sqlite3SelectDestInit(&dest, SRT_EphemTab, iCur);

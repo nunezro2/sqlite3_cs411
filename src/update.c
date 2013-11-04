@@ -637,7 +637,7 @@ static void updateVirtualTable(
     }
     pEList = sqlite3ExprListAppend(pParse, pEList, pExpr);
   }
-  pSelect = sqlite3SelectNew(pParse, pEList, pSrc, pWhere, 0, 0, 0, 0, 0, 0);
+  pSelect = sqlite3SelectNew(pParse, pEList, pSrc, pWhere, 0, 0, 0, 0, 0, 0, 0);   // Changes to include CLUSTER BY, passing NULL Pointer
   
   /* Create the ephemeral table into which the update results will
   ** be stored.

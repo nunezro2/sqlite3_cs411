@@ -163,6 +163,7 @@ static Keyword aKeywordTable[] = {
   { "CASE",             "TK_CASE",         ALWAYS                 },
   { "CAST",             "TK_CAST",         CAST                   },
   { "CHECK",            "TK_CHECK",        ALWAYS                 },
+  { "CLUSTER",          "TK_CLUSTER",      ALWAYS                 },
   { "COLLATE",          "TK_COLLATE",      ALWAYS                 },
   { "COLUMN",           "TK_COLUMNKW",     ALTER                  },
   { "COMMIT",           "TK_COMMIT",       ALWAYS                 },

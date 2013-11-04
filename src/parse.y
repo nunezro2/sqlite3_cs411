@@ -429,8 +429,8 @@ multiselect_op(A) ::= UNION ALL.             {A = TK_ALL;}
 multiselect_op(A) ::= EXCEPT|INTERSECT(OP).  {A = @OP;}
 %endif SQLITE_OMIT_COMPOUND_SELECT
 oneselect(A) ::= SELECT distinct(D) selcollist(W) from(X) where_opt(Y)
-                 groupby_opt(P) having_opt(Q) orderby_opt(Z) limit_opt(L). {
-  A = sqlite3SelectNew(pParse,W,X,Y,P,Q,Z,D,L.pLimit,L.pOffset);
+                 clusterby_opt(C) groupby_opt(P) having_opt(Q) orderby_opt(Z) limit_opt(L). {  // Including the CLUSTER BY clause in the select
+  A = sqlite3SelectNew(pParse,W,X,Y,C,P,Q,Z,D,L.pLimit,L.pOffset);
 }
 
 // The "distinct" nonterminal is true (1) if the DISTINCT keyword is
@@ -529,7 +529,7 @@ seltablist(A) ::= stl_prefix(X) nm(Y) dbnm(D) as(Z) indexed_opt(I)
     }else{
       Select *pSubquery;
       sqlite3SrcListShiftJoinType(F);
-      pSubquery = sqlite3SelectNew(pParse,0,F,0,0,0,0,SF_NestedFrom,0,0);
+      pSubquery = sqlite3SelectNew(pParse,0,F,0,0,0,0,0,SF_NestedFrom,0,0);  // Including the CLUSTER BY clause in the select
       A = sqlite3SrcListAppendFromTerm(pParse,X,0,0,&Z,pSubquery,N,U);
     }
   }
@@ -603,6 +603,14 @@ sortorder(A) ::= .              {A = SQLITE_SO_ASC;}
 %destructor groupby_opt {sqlite3ExprListDelete(pParse->db, $$);}
 groupby_opt(A) ::= .                      {A = 0;}
 groupby_opt(A) ::= GROUP BY nexprlist(X). {A = X;}
+
+// This is the the CLUSTER BY token
+// It should work like: SELECT A, B FROM tableX CLUSTER BY (k, A)
+%type clusterby_opt {ExprList*}
+%destructor clusterby_opt {sqlite3ExprListDelete(pParse->db, $$);}
+clusterby_opt(A) ::= .				{A = 0;}			
+clusterby_opt(A) ::= CLUSTER BY nexprlist(X).	{A = X;}
+
 
 %type having_opt {Expr*}
 %destructor having_opt {sqlite3ExprDelete(pParse->db, $$);}
@@ -718,9 +726,9 @@ valuelist(A) ::= VALUES LP nexprlist(X) RP. {
 // to disable the value list option if compound SELECTs are disabled.
 %ifndef SQLITE_OMIT_COMPOUND_SELECT
 valuelist(A) ::= valuelist(X) COMMA LP exprlist(Y) RP. {
-  Select *pRight = sqlite3SelectNew(pParse, Y, 0, 0, 0, 0, 0, 0, 0, 0);
+  Select *pRight = sqlite3SelectNew(pParse, Y, 0, 0, 0, 0, 0, 0, 0, 0, 0);   // Including the CLUSTER BY clause in the select
   if( X.pList ){
-    X.pSelect = sqlite3SelectNew(pParse, X.pList, 0, 0, 0, 0, 0, 0, 0, 0);
+    X.pSelect = sqlite3SelectNew(pParse, X.pList, 0, 0, 0, 0, 0, 0, 0, 0, 0);   // Including the CLUSTER BY clause in the select
     X.pList = 0;
   }
   A.pList = 0;
@@ -1055,7 +1063,7 @@ expr(A) ::= expr(W) between_op(N) expr(X) AND expr(Y). [BETWEEN] {
     SrcList *pSrc = sqlite3SrcListAppend(pParse->db, 0,&Y,&Z);
     A.pExpr = sqlite3PExpr(pParse, TK_IN, X.pExpr, 0, 0);
     if( A.pExpr ){
-      A.pExpr->x.pSelect = sqlite3SelectNew(pParse, 0,pSrc,0,0,0,0,0,0,0);
+      A.pExpr->x.pSelect = sqlite3SelectNew(pParse, 0,pSrc,0,0,0,0,0,0,0,0);  // Including the CLUSTER BY clause in the select
       ExprSetProperty(A.pExpr, EP_xIsSelect);
       sqlite3ExprSetHeight(pParse, A.pExpr);
     }else{

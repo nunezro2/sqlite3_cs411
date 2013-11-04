@@ -1166,7 +1166,7 @@ static Trigger *fkActionTrigger(
           sqlite3ExprListAppend(pParse, 0, pRaise),
           sqlite3SrcListAppend(db, 0, &tFrom, 0),
           pWhere,
-          0, 0, 0, 0, 0, 0
+          0, 0, 0, 0, 0, 0, 0  // Changes to include CLUSTER BY, passing NULL Pointer
       );
       pWhere = 0;
     }
