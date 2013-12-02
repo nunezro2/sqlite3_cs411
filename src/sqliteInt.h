@@ -2094,6 +2094,7 @@ struct Select {
   Select *pRightmost;    /* Right-most select in a compound select statement */
   Expr *pLimit;          /* LIMIT expression. NULL means not used. */
   Expr *pOffset;         /* OFFSET expression. NULL means not used. */
+  ExprList *pClusterBy;  /* CLUSTER expression */
 };
 
 /*

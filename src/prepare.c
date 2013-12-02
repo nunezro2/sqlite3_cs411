@@ -688,12 +688,12 @@ end_prepare:
 }
 static int sqlite3LockAndPrepare(
   sqlite3 *db,              /* Database handle. */
-  const char *zSql,         /* UTF-8 encoded SQL statement. */
+  const char *zSql,        /* UTF-8 encoded SQL statement. */
   int nBytes,               /* Length of zSql in bytes. */
   int saveSqlFlag,          /* True to copy SQL text into the sqlite3_stmt */
   Vdbe *pOld,               /* VM being reprepared */
   sqlite3_stmt **ppStmt,    /* OUT: A pointer to the prepared statement */
-  const char **pzTail       /* OUT: End of parsed string */
+  const char **pzTail      /* OUT: End of parsed string */
 ){
   int rc;
   assert( ppStmt!=0 );

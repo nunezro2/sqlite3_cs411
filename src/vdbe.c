@@ -1172,11 +1172,13 @@ case OP_ResultRow: {
   ** a side effect.
   */
   pMem = p->pResultSet = &aMem[pOp->p1];
-  for(i=0; i<pOp->p2; i++){
+  printf("%d\n", pOp->p2);
+  for(i=0; i<pOp->p2; i++)
+  {
     assert( memIsValid(&pMem[i]) );
     Deephemeralize(&pMem[i]);
     assert( (pMem[i].flags & MEM_Ephem)==0
-            || (pMem[i].flags & (MEM_Str|MEM_Blob))==0 );
+           || (pMem[i].flags & (MEM_Str|MEM_Blob))==0 );
     sqlite3VdbeMemNulTerminate(&pMem[i]);
     sqlite3VdbeMemStoreType(&pMem[i]);
     REGISTER_TRACE(pOp->p1+i, &pMem[i]);
@@ -2134,7 +2136,8 @@ case OP_IsNull: {            /* same as TK_ISNULL, jump, in1 */
 */
 case OP_NotNull: {            /* same as TK_NOTNULL, jump, in1 */
   pIn1 = &aMem[pOp->p1];
-  if( (pIn1->flags & MEM_Null)==0 ){
+  if( (pIn1->flags & MEM_Null)==0 )
+  {
     pc = pOp->p2 - 1;
   }
   break;

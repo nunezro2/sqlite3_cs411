@@ -3483,10 +3483,14 @@ int sqlite3ExprCodeExprList(
     Expr *pExpr = pItem->pExpr;
     int inReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
     if( inReg!=target+i ){
+    printf("hey 5\n");
       sqlite3VdbeAddOp2(pParse->pVdbe, doHardCopy ? OP_Copy : OP_SCopy,
                         inReg, target+i);
     }
   }
+  printf("Hey 6\n");
+  pItem=pList->a;
+  int inReg = sqlite3ExprCodeTarget(pParse, pItem->pExpr, target);
   return n;
 }
 

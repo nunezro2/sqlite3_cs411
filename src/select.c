@@ -98,6 +98,7 @@ Select *sqlite3SelectNew(
   pNew->op = TK_SELECT;
   pNew->pLimit = pLimit;
   pNew->pOffset = pOffset;
+  pNew->pClusterBy = pClusterBy;
   assert( pOffset==0 || pLimit!=0 );
   pNew->addrOpenEphm[0] = -1;
   pNew->addrOpenEphm[1] = -1;
@@ -489,6 +490,20 @@ static void codeOffset(
   }
 }
 
+
+/*
+** Add code to implement the CLUSTER function
+*/
+static void codeCluster(
+  Vdbe *v,          /* Generate code into this VM */
+  Select *p,        /* The SELECT statement being coded */
+  int iContinue     /* Jump here to skip the current record */
+){
+
+}
+
+
+
 /*
 ** Add code that will check to make sure the N registers starting at iMem
 ** form a distinct entry.  iTab is a sorting index that holds previously
@@ -576,7 +591,7 @@ static void selectInnerLoop(
 ){
   Vdbe *v = pParse->pVdbe;
   int i;
-  int hasDistinct;        /* True if the DISTINCT keyword is present */
+  int hasDistinct;            /* True if the DISTINCT keyword is present */
   int regResult;              /* Start of memory holding result set */
   int eDest = pDest->eDest;   /* How to dispose of results */
   int iParm = pDest->iSDParm; /* First argument to disposal method */
@@ -597,6 +612,8 @@ static void selectInnerLoop(
   }else{
     nResultCol = pEList->nExpr;
   }
+
+  // if CLUSTER BY, then add nresultcol++
   if( pDest->iSdst==0 ){
     pDest->iSdst = pParse->nMem+1;
     pDest->nSdst = nResultCol;
@@ -605,16 +622,24 @@ static void selectInnerLoop(
     assert( pDest->nSdst==nResultCol );
   }
   regResult = pDest->iSdst;
+  printf("Hey 1\n");
   if( nColumn>0 ){
     for(i=0; i<nColumn; i++){
       sqlite3VdbeAddOp3(v, OP_Column, srcTab, i, regResult+i);
     }
   }else if( eDest!=SRT_Exists ){
+	  // we will not reach this branch for cluster by. not supporting EXISTS
     /* If the destination is an EXISTS(...) expression, the actual
     ** values returned by the SELECT are not required.
     */
     sqlite3ExprCacheClear(pParse);
     sqlite3ExprCodeExprList(pParse, pEList, regResult, eDest==SRT_Output);
+    printf("Hey 2\n");
+       if (p->pClusterBy){
+    	nResultCol++;
+       	memset(&regResult+nResultCol, 0, sizeof(regResult+nResultCol));
+       	printf("Hey 3\n");
+     	 }
   }
   nColumn = nResultCol;
 
@@ -623,6 +648,7 @@ static void selectInnerLoop(
   ** part of the result.
   */
   if( hasDistinct ){
+	  // we will not reach this branch for cluster by. not supporting DISTINCT
     assert( pEList!=0 );
     assert( pEList->nExpr==nColumn );
     switch( pDistinct->eTnctType ){
@@ -677,7 +703,7 @@ static void selectInnerLoop(
     if( pOrderBy==0 ){
       codeOffset(v, p, iContinue);
     }
-  }
+  } // end of DISTINCT
 
   switch( eDest ){
     /* In this mode, write each query result to the key of the temporary
@@ -789,6 +815,8 @@ static void selectInnerLoop(
       }else if( eDest==SRT_Coroutine ){
         sqlite3VdbeAddOp1(v, OP_Yield, pDest->iSDParm);
       }else{
+    	  // Here's out code
+    	  printf("hey 4  %d\n", nColumn);
         sqlite3VdbeAddOp2(v, OP_ResultRow, regResult, nColumn);
         sqlite3ExprCacheAffinityChange(pParse, regResult, nColumn);
       }
