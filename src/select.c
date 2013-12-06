@@ -598,14 +598,16 @@ static void codeCluster(
 	newCentroids = pParse->nTab++;
 	sqlite3VdbeAddOp2(v, OP_OpenEphemeral, newCentroids, nDimensions + 1);
 
+	//Adding an INTEGER to the list of Expresion in pCluster. This will be used to be inserted
+	// in the the newCentroids ephemeral table
 	pCluster = sqlite3ExprListAppend(pParse, pCluster, sqlite3Expr(db,TK_INTEGER,"1"));
 
-
-	// ACCESSING COLUMNS
+	// Iterating thru the columns
 	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 1; i++, pItem++)
 	{
 		Expr *pExpr = pItem->pExpr;
-		if (pExpr->op != TK_INTEGER) {
+		if (pExpr->op != TK_INTEGER)
+		{
 			for (j = 0; j < p->pEList->nExpr; j++) {
 				if (  !strcmp(pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken) )
 				{
@@ -621,20 +623,24 @@ static void codeCluster(
 	    }
 	}
 
+	// temporary registers to hold information of the new record location and the new RowID
 	int newRecordDest = sqlite3GetTempReg(pParse);
     int newRowId = sqlite3GetTempReg(pParse);
 
+    // Inserting row into oldCentroid
 	sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c, newRecordDest);
     sqlite3VdbeAddOp2(v, OP_NewRowid, oldCentroids, newRowId);
     sqlite3VdbeAddOp3(v, OP_Insert, oldCentroids, newRecordDest, newRowId);
 
-
+    // Inserting row into newCentroid
     sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c+1, newRecordDest);
     sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
     sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
 
-    sqlite3VdbeAddOp2(v, OP_Next, pLevel->iTabCur, addrTop+1);
 
+    //Logic for the loop. If greater then k, break, if not, then continue inserting rows
+    // into the ephemeral table
+    //sqlite3VdbeAddOp2(v, OP_Next, pLevel->iTabCur, addrTop+1);
 
 
 	// Closing old ephemeral table
