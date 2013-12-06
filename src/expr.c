@@ -2361,12 +2361,12 @@ int sqlite3ExprCodeTarget(Parse *pParse, Expr *pExpr, int target){
     assert( pParse->db->mallocFailed );
     return 0;
   }
-
   if( pExpr==0 ){
     op = TK_NULL;
   }else{
     op = pExpr->op;
   }
+  printf("Hey 6: %d\n", op);
   switch( op ){
     case TK_AGG_COLUMN: {
       AggInfo *pAggInfo = pExpr->pAggInfo;
@@ -2400,6 +2400,7 @@ int sqlite3ExprCodeTarget(Parse *pParse, Expr *pExpr, int target){
       break;
     }
     case TK_INTEGER: {
+      printf("Hey 8: %d\n", op);
       codeInteger(pParse, pExpr, 0, target);
       break;
     }
@@ -3479,6 +3480,7 @@ int sqlite3ExprCodeExprList(
   assert( target>0 );
   assert( pParse->pVdbe!=0 );  /* Never gets this far otherwise */
   n = pList->nExpr;
+  printf("hey 7: %d\n", n);
   for(pItem=pList->a, i=0; i<n; i++, pItem++){
     Expr *pExpr = pItem->pExpr;
     int inReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
@@ -3488,9 +3490,6 @@ int sqlite3ExprCodeExprList(
                         inReg, target+i);
     }
   }
-  printf("Hey 6\n");
-  pItem=pList->a;
-  int inReg = sqlite3ExprCodeTarget(pParse, pItem->pExpr, target);
   return n;
 }
 

@@ -491,17 +491,6 @@ static void codeOffset(
 }
 
 
-/*
-** Add code to implement the CLUSTER function
-*/
-static void codeCluster(
-  Vdbe *v,          /* Generate code into this VM */
-  Select *p,        /* The SELECT statement being coded */
-  int iContinue     /* Jump here to skip the current record */
-){
-
-}
-
 
 
 /*
@@ -568,6 +557,97 @@ struct DistinctCtx {
   int addrTnct;   /* Address of OP_OpenEphemeral opcode for tabTnct */
 };
 
+
+
+/*
+** Add code to implement the CLUSTER function
+*/
+static void codeCluster(
+  Parse *pParse,          /* The parser context */
+  Select *p,              /* The complete select statement being coded */
+  ExprList *pEList,       /* List of values being extracted */
+  DistinctCtx *sDistinct, /* Info on how to code the DISTINCT keyword */
+  SelectDest *pDest
+){
+	ExprList *pOrderBy = p->pOrderBy;
+	SrcList *pTabList = p->pSrc;
+	Expr *pWhere = p->pWhere;
+	sqlite3 *db = pParse->db;
+	ExprList *pCluster = p->pClusterBy;
+	u16 wctrlFlags = (sDistinct->isTnct ? WHERE_WANT_DISTINCT : 0);
+	Vdbe *v = pParse->pVdbe;
+	struct ExprList_item *pItem;
+	int target = pDest->iSdst;
+	int nDimensions = pCluster->nExpr - 1;
+	int k = pCluster->a[0].pExpr->u.iValue;
+	int c = pCluster->nExpr -1;
+	int cReg;
+	int i = 0;
+	int j = 0;
+	int oldCentroids;
+	int newCentroids;
+
+	// Open Table and do Rewind
+	WhereInfo *pWhereInfo = sqlite3WhereBegin(pParse, pTabList, pWhere, pOrderBy, p->pEList, wctrlFlags, 0);
+
+	// Creating old ephemeral table to hold old centroids
+	oldCentroids = pParse->nTab++;
+	sqlite3VdbeAddOp2(v, OP_OpenEphemeral, oldCentroids, nDimensions);
+
+	// Creating new ephemeral table to hold new centroids
+	newCentroids = pParse->nTab++;
+	sqlite3VdbeAddOp2(v, OP_OpenEphemeral, newCentroids, nDimensions + 1);
+
+	pCluster = sqlite3ExprListAppend(pParse, pCluster, sqlite3Expr(db,TK_INTEGER,"1"));
+
+
+	// ACCESSING COLUMNS
+	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 1; i++, pItem++)
+	{
+		Expr *pExpr = pItem->pExpr;
+		if (pExpr->op != TK_INTEGER) {
+			for (j = 0; j < p->pEList->nExpr; j++) {
+				if (  !strcmp(pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken) )
+				{
+//					printf("match %s %s \n",pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken);
+					pExpr = p->pEList->a[j].pExpr;
+				}
+			}
+		}
+	    cReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
+	    if( cReg!=target+i )
+	    {
+	      sqlite3VdbeAddOp2(pParse->pVdbe, pDest->eDest? OP_Copy : OP_SCopy, cReg, target+i);
+	    }
+	}
+
+	int newRecordDest = sqlite3GetTempReg(pParse);
+    int newRowId = sqlite3GetTempReg(pParse);
+
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c, newRecordDest);
+    sqlite3VdbeAddOp2(v, OP_NewRowid, oldCentroids, newRowId);
+    sqlite3VdbeAddOp3(v, OP_Insert, oldCentroids, newRecordDest, newRowId);
+
+
+    sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c+1, newRecordDest);
+    sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
+    sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
+
+    sqlite3VdbeAddOp2(v, OP_Next, pLevel->iTabCur, addrTop+1);
+
+
+
+	// Closing old ephemeral table
+	sqlite3VdbeAddOp2(v, OP_Close, oldCentroids, 0);
+
+	// TODO Closing new ephemeral table. Should we done after innerLoop()
+	sqlite3VdbeAddOp2(v, OP_Close, newCentroids, 0);
+
+
+	// End the database scan loop. Close Table and Next
+	sqlite3WhereEnd(pWhereInfo);
+}
+
 /*
 ** This routine generates the code for the inside of the inner loop
 ** of a SELECT.
@@ -591,11 +671,19 @@ static void selectInnerLoop(
 ){
   Vdbe *v = pParse->pVdbe;
   int i;
+  sqlite3 *db = pParse->db;
   int hasDistinct;            /* True if the DISTINCT keyword is present */
   int regResult;              /* Start of memory holding result set */
   int eDest = pDest->eDest;   /* How to dispose of results */
   int iParm = pDest->iSDParm; /* First argument to disposal method */
   int nResultCol;             /* Number of result columns */
+  ExprList *cluster =  p->pClusterBy;
+
+
+  if(p->pClusterBy)
+  {
+  	pEList = sqlite3ExprListAppend(pParse, pEList, sqlite3Expr(db,TK_INTEGER,"1"));
+  }
 
   assert( v );
   if( NEVER(v==0) ) return;
@@ -604,7 +692,16 @@ static void selectInnerLoop(
   if( pOrderBy==0 && !hasDistinct ){
     codeOffset(v, p, iContinue);
   }
-
+  if (cluster){
+	  for (i = 0; i < pEList->nExpr; i++) {
+		  if (pEList->a[i].pExpr) {
+			  if (pEList->a[i].pExpr->flags == 1024)
+				  printf("Expression in pEList %d: %d\n", i, pEList->a[i].pExpr->u.iValue);
+			  else
+				  printf("Expression in pEList %d: %s\n", i, pEList->a[i].pExpr->u.zToken);
+		  }
+	  }
+  }
   /* Pull the requested columns.
   */
   if( nColumn>0 ){
@@ -622,7 +719,7 @@ static void selectInnerLoop(
     assert( pDest->nSdst==nResultCol );
   }
   regResult = pDest->iSdst;
-  printf("Hey 1\n");
+  printf("Hey 1: %d\n", nResultCol);
   if( nColumn>0 ){
     for(i=0; i<nColumn; i++){
       sqlite3VdbeAddOp3(v, OP_Column, srcTab, i, regResult+i);
@@ -633,13 +730,10 @@ static void selectInnerLoop(
     ** values returned by the SELECT are not required.
     */
     sqlite3ExprCacheClear(pParse);
+
     sqlite3ExprCodeExprList(pParse, pEList, regResult, eDest==SRT_Output);
     printf("Hey 2\n");
-       if (p->pClusterBy){
-    	nResultCol++;
-       	memset(&regResult+nResultCol, 0, sizeof(regResult+nResultCol));
-       	printf("Hey 3\n");
-     	 }
+
   }
   nColumn = nResultCol;
 
@@ -4339,6 +4433,11 @@ int sqlite3Select(
   if( !isAgg && pGroupBy==0 ){
     /* No aggregate functions and no GROUP BY clause */
     u16 wctrlFlags = (sDistinct.isTnct ? WHERE_WANT_DISTINCT : 0);
+
+    // Prepare ephemeral tables: populate them with final centroids of the k cluster.
+    if (p->pClusterBy) {
+    	codeCluster(pParse, p, pEList, &sDistinct, pDest);
+    }
 
     /* Begin the database scan. */
     pWInfo = sqlite3WhereBegin(pParse, pTabList, pWhere, pOrderBy, p->pEList,
