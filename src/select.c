@@ -586,9 +586,22 @@ static void codeCluster(
 	int j = 0;
 	int oldCentroids;
 	int newCentroids;
+	int pc;
 
-	// Open Table and do Rewind
-	WhereInfo *pWhereInfo = sqlite3WhereBegin(pParse, pTabList, pWhere, pOrderBy, p->pEList, wctrlFlags, 0);
+	// Creating the register containing the value of k
+    int kRegister = sqlite3GetTempReg(pParse);
+    char str[15];
+    sprintf(str, "%d", k);
+    Expr *kExpr =  sqlite3Expr(db,TK_INTEGER, str);
+    sqlite3ExprCodeTarget(pParse, kExpr, kRegister);
+
+    // Creating the register for the accumulator, initialized with value 1
+    int counterRegister = sqlite3GetTempReg(pParse);
+    Expr *counterExpr =  sqlite3Expr(db,TK_INTEGER, "1");
+    sqlite3ExprCodeTarget(pParse, counterExpr, counterRegister);
+
+    // Creating expression for value 1
+    Expr *oneExpr =  sqlite3Expr(db,TK_INTEGER, "1");
 
 	// Creating old ephemeral table to hold old centroids
 	oldCentroids = pParse->nTab++;
@@ -598,11 +611,14 @@ static void codeCluster(
 	newCentroids = pParse->nTab++;
 	sqlite3VdbeAddOp2(v, OP_OpenEphemeral, newCentroids, nDimensions + 1);
 
+	// Open Table and do Rewind
+	WhereInfo *pWhereInfo = sqlite3WhereBegin(pParse, pTabList, pWhere, pOrderBy, p->pEList, wctrlFlags, 0);
+
 	//Adding an INTEGER to the list of Expresion in pCluster. This will be used to be inserted
 	// in the the newCentroids ephemeral table
 	pCluster = sqlite3ExprListAppend(pParse, pCluster, sqlite3Expr(db,TK_INTEGER,"1"));
 
-	// Iterating thru the columns
+	// Iterating through the columns
 	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 1; i++, pItem++)
 	{
 		Expr *pExpr = pItem->pExpr;
@@ -634,14 +650,40 @@ static void codeCluster(
 
     // Inserting row into newCentroid
     sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c+1, newRecordDest);
-    sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
-    sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
+    //sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
+    pc = sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
 
 
-    //Logic for the loop. If greater then k, break, if not, then continue inserting rows
-    // into the ephemeral table
-    //sqlite3VdbeAddOp2(v, OP_Next, pLevel->iTabCur, addrTop+1);
+    sqlite3VdbeAddOp3(v, OP_Gt, kRegister, pc + 4, counterRegister);
+    sqlite3VdbeAddOp2(v, OP_AddImm, counterRegister,1);
 
+
+    // OP_NEXT to return to the next row
+    sqlite3VdbeAddOp2(v, sqlite3WhereLevelOp(pWhereInfo), sqlite3WhereLevelP1(pWhereInfo), sqlite3WhereLevelP2(pWhereInfo));
+
+    // ------------------------------- Up to here, we have initialized all the tables and values
+
+    int addr = sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
+
+    // Iterating through the columns
+	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 2; i++, pItem++)
+	{
+		Expr *pExpr = pItem->pExpr;
+		for (j = 0; j < p->pEList->nExpr; j++)
+		{
+			if (  !strcmp(pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken))
+			{
+//				printf("match %s %s \n",pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken);
+				pExpr = p->pEList->a[j].pExpr;
+			}
+		}
+
+		cReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
+		if( cReg!=target+i )
+		{
+		  sqlite3VdbeAddOp2(pParse->pVdbe, pDest->eDest? OP_Copy : OP_SCopy, cReg, target+i);
+		}
+	}
 
 	// Closing old ephemeral table
 	sqlite3VdbeAddOp2(v, OP_Close, oldCentroids, 0);
@@ -652,6 +694,7 @@ static void codeCluster(
 
 	// End the database scan loop. Close Table and Next
 	sqlite3WhereEnd(pWhereInfo);
+	printf("End of CodeCluster()\n");
 }
 
 /*
@@ -685,10 +728,9 @@ static void selectInnerLoop(
   int nResultCol;             /* Number of result columns */
   ExprList *cluster =  p->pClusterBy;
 
-
   if(p->pClusterBy)
   {
-  	pEList = sqlite3ExprListAppend(pParse, pEList, sqlite3Expr(db,TK_INTEGER,"1"));
+  	//pEList = sqlite3ExprListAppend(pParse, pEList, sqlite3Expr(db,TK_INTEGER,"1"));
   }
 
   assert( v );

@@ -458,6 +458,23 @@ struct WhereInfo {
 #define WHERE_MULTI_OR     0x00002000  /* OR using multiple indices */
 #define WHERE_AUTO_INDEX   0x00004000  /* Uses an ephemeral index */
 
+
+
+
+
+u8 sqlite3WhereLevelOp(WhereInfo *pWInfo){
+  return pWInfo->a[0].op;
+}
+
+int sqlite3WhereLevelP1(WhereInfo *pWInfo){
+  return pWInfo->a[0].p1;
+}
+
+
+int sqlite3WhereLevelP2(WhereInfo *pWInfo){
+  return pWInfo->a[0].p2;
+}
+
 /*
 ** Return the estimated number of output rows from a WHERE clause
 */
