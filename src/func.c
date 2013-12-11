@@ -1171,14 +1171,48 @@ static void helloFunc(
   int argc,
   sqlite3_value **argv
 ){
-  struct info *param;
+  //struct info *param;
   const char *msg;
-  printf("sizeof struct info: %d\n", sizeof(*param));
-  param = sqlite3_my_context(context, sizeof(*param));
-  if (param == NULL)
-	printf("param is null!\n");
-  msg = sqlite3_mprintf("Hello %s %d", sqlite3_value_text(argv[0]), param->counter++);  
+  //printf("sizeof struct info: %d\n", sizeof(*param));
+  //param = sqlite3_my_context(context, sizeof(*param));
+  //if (param == NULL)
+  //printf("param is null!\n");
+  msg = sqlite3_mprintf("Hello %s", sqlite3_value_text(argv[0]));
   sqlite3_result_text(context, msg, strlen(msg), sqlite3_free);
+}
+
+
+/*
+** Implementation of the hello() function.
+*/
+static void eDistanceFunc(
+  sqlite3_context *context,
+  int argc,
+  sqlite3_value **argv
+){
+  //struct info *param;
+  //const char *msg;
+  //param = sqlite3_my_context(context, sizeof(*param));
+  int i;
+  int acum = 0;
+
+  //printf("No. of arguments %d\n", argc);
+  if (argc > 1)
+  {
+	  for (i = 0; i < argc/2; i++)
+	  {
+		  printf("Computing %d %d\n", sqlite3_value_int(argv[i]), sqlite3_value_int(argv[i + argc/2]));
+		  int temp = sqlite3_value_int(argv[i]) - ( sqlite3_value_int(argv[i + argc/2]));
+		  acum += (temp)*(temp);
+	  }
+  }
+
+  printf("acum: %d \n", acum)	;
+  //if (param == NULL)
+  sqlite3_result_int(context, acum);
+
+
+  //sqlite3_result_text(context, msg, strlen(msg), sqlite3_free);
 }
 
 
@@ -1655,6 +1689,7 @@ void sqlite3RegisterGlobalFunctions(void){
   ** are read-only after initialization is complete.
   */
   static SQLITE_WSD FuncDef aBuiltinFunc[] = {
+    FUNCTION(eDistance,         -1, 0, 0, eDistanceFunc    ),
     FUNCTION(hello,              1, 0, 0, helloFunc        ),
     FUNCTION(ltrim,              1, 1, 0, trimFunc         ),
     FUNCTION(ltrim,              2, 1, 0, trimFunc         ),

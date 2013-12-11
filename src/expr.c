@@ -2220,12 +2220,16 @@ void sqlite3ExprCodeGetColumnOfTable(
 ){
   if( iCol<0 || iCol==pTab->iPKey ){
     sqlite3VdbeAddOp2(v, OP_Rowid, iTabCur, regOut);
+    printf("Check 1\n");
   }else{
     int op = IsVirtual(pTab) ? OP_VColumn : OP_Column;
     sqlite3VdbeAddOp3(v, op, iTabCur, iCol, regOut);
+    printf("Check 2\n");
+
   }
   if( iCol>=0 ){
     sqlite3ColumnDefault(v, pTab, iCol, regOut);
+    printf("Check 3\n");
   }
 }
 
@@ -2250,19 +2254,27 @@ int sqlite3ExprCodeGetColumn(
   int i;
   struct yColCache *p;
 
+
   for(i=0, p=pParse->aColCache; i<SQLITE_N_COLCACHE; i++, p++){
     if( p->iReg>0 && p->iTable==iTable && p->iColumn==iColumn ){
+    	printf("CheckGetColumn 1\n");
       p->lru = pParse->iCacheCnt++;
       sqlite3ExprCachePinRegister(pParse, p->iReg);
       return p->iReg;
     }
-  }  
+  }
+
   assert( v!=0 );
+
   sqlite3ExprCodeGetColumnOfTable(v, pTab, iTable, iColumn, iReg);
   if( p5 ){
     sqlite3VdbeChangeP5(v, p5);
+	printf("CheckGetColumn 2\n");
+
   }else{   
     sqlite3ExprCacheStore(pParse, iTable, iColumn, iReg);
+	printf("CheckGetColumn 3\n");
+
   }
   return iReg;
 }
@@ -2394,9 +2406,11 @@ int sqlite3ExprCodeTarget(Parse *pParse, Expr *pExpr, int target){
           iTab = pParse->iPartIdxTab;
         }
       }
+
       inReg = sqlite3ExprCodeGetColumn(pParse, pExpr->pTab,
                                pExpr->iColumn, iTab, target,
                                pExpr->op2);
+      printf("inReg: %d  iColumn%d\n", inReg, pExpr->iColumn);
       break;
     }
     case TK_INTEGER: {

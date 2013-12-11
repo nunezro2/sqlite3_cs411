@@ -572,7 +572,11 @@ static void codeCluster(
 	ExprList *pOrderBy = p->pOrderBy;
 	SrcList *pTabList = p->pSrc;
 	Expr *pWhere = p->pWhere;
+	FuncDef *pDef;         /* The function definition object for our computeDistance function */
+	const char fDefName[9] = {'e', 'D', 'i', 's', 't', 'a', 'n', 'c', 'e'};
+	int fDefLength = sqlite3Strlen30(fDefName);
 	sqlite3 *db = pParse->db;
+	u8 enc = (db)->aDb[0].pSchema->enc;
 	ExprList *pCluster = p->pClusterBy;
 	u16 wctrlFlags = (sDistinct->isTnct ? WHERE_WANT_DISTINCT : 0);
 	Vdbe *v = pParse->pVdbe;
@@ -580,13 +584,14 @@ static void codeCluster(
 	int target = pDest->iSdst;
 	int nDimensions = pCluster->nExpr - 1;
 	int k = pCluster->a[0].pExpr->u.iValue;
-	int c = pCluster->nExpr -1;
+	int nColumnInClusterBy = pCluster->nExpr -1;
 	int cReg;
 	int i = 0;
 	int j = 0;
 	int oldCentroids;
 	int newCentroids;
 	int pc;
+	int sourceTable = 0;  // Assuming the first
 
 	// Creating the register containing the value of k
     int kRegister = sqlite3GetTempReg(pParse);
@@ -599,6 +604,27 @@ static void codeCluster(
     int counterRegister = sqlite3GetTempReg(pParse);
     Expr *counterExpr =  sqlite3Expr(db,TK_INTEGER, "1");
     sqlite3ExprCodeTarget(pParse, counterExpr, counterRegister);
+
+    // Creating the register to hold the minimum distance register
+    int minDistanceReg = sqlite3GetTempReg(pParse);
+    Expr *minDistanceExpr = sqlite3Expr(db,TK_INTEGER, "0");
+    sqlite3ExprCodeTarget(pParse, minDistanceExpr, minDistanceReg);
+
+    //Creating a register to hold the minimum RowID
+    int minRowIdReg = sqlite3GetTempReg(pParse);
+    Expr *minRowIdRegExpr = sqlite3Expr(db,TK_INTEGER, "-1");
+    sqlite3ExprCodeTarget(pParse, minRowIdRegExpr, minRowIdReg);
+
+    //Creating a register to hold the threshold
+    int thresholdReg = sqlite3GetTempReg(pParse);
+    Expr *thresholdRegExpr = sqlite3Expr(db,TK_INTEGER, "1");
+    sqlite3ExprCodeTarget(pParse, thresholdRegExpr, thresholdReg);
+
+    //Creating a register to hold the number of cluster that haven't converged
+    int pendingClusterCounterReg = sqlite3GetTempReg(pParse);
+    Expr *pendingClusterCounterRegExpr = sqlite3Expr(db,TK_INTEGER, "0");
+    sqlite3ExprCodeTarget(pParse, pendingClusterCounterRegExpr, pendingClusterCounterReg);
+
 
     // Creating expression for value 1
     Expr *oneExpr =  sqlite3Expr(db,TK_INTEGER, "1");
@@ -619,7 +645,7 @@ static void codeCluster(
 	pCluster = sqlite3ExprListAppend(pParse, pCluster, sqlite3Expr(db,TK_INTEGER,"1"));
 
 	// Iterating through the columns
-	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 1; i++, pItem++)
+	for(pItem=pCluster->a+1, i=0; i< (nColumnInClusterBy + 1); i++, pItem++)
 	{
 		Expr *pExpr = pItem->pExpr;
 		if (pExpr->op != TK_INTEGER)
@@ -644,36 +670,35 @@ static void codeCluster(
     int newRowId = sqlite3GetTempReg(pParse);
 
     // Inserting row into oldCentroid
-	sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c, newRecordDest);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, target, nColumnInClusterBy, newRecordDest);
     sqlite3VdbeAddOp2(v, OP_NewRowid, oldCentroids, newRowId);
     sqlite3VdbeAddOp3(v, OP_Insert, oldCentroids, newRecordDest, newRowId);
 
     // Inserting row into newCentroid
-    sqlite3VdbeAddOp3(v, OP_MakeRecord, target, c+1, newRecordDest);
+    sqlite3VdbeAddOp3(v, OP_MakeRecord, target, nColumnInClusterBy+1, newRecordDest);
     //sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
-    pc = sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
+    int bigLoopBegin = sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
+    bigLoopBegin += 4;
 
-
-    sqlite3VdbeAddOp3(v, OP_Gt, kRegister, pc + 4, counterRegister);
+    sqlite3VdbeAddOp3(v, OP_Gt, kRegister, bigLoopBegin, counterRegister);
     sqlite3VdbeAddOp2(v, OP_AddImm, counterRegister,1);
 
 
     // OP_NEXT to return to the next row
-    sqlite3VdbeAddOp2(v, sqlite3WhereLevelOp(pWhereInfo), sqlite3WhereLevelP1(pWhereInfo), sqlite3WhereLevelP2(pWhereInfo));
+    int nextSourceTbAddress = sqlite3VdbeAddOp2(v, sqlite3WhereLevelOp(pWhereInfo), sqlite3WhereLevelP1(pWhereInfo), sqlite3WhereLevelP2(pWhereInfo));
 
     // ------------------------------- Up to here, we have initialized all the tables and values
 
-    int addr = sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
-
-    // Iterating through the columns
-	for(pItem=pCluster->a+1, i=0; i<pCluster->nExpr - 2; i++, pItem++)
+    // Iterating through the columns in the main table
+	for(pItem=pCluster->a+1, k=0; k < nColumnInClusterBy; k++, i++, pItem++)
 	{
+		printf("Nexpr %d\n", pCluster->nExpr - 2);
 		Expr *pExpr = pItem->pExpr;
 		for (j = 0; j < p->pEList->nExpr; j++)
 		{
 			if (  !strcmp(pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken))
 			{
-//				printf("match %s %s \n",pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken);
+				//printf("match %s %s \n",pExpr->u.zToken, p->pEList->a[j].pExpr->u.zToken);
 				pExpr = p->pEList->a[j].pExpr;
 			}
 		}
@@ -681,16 +706,141 @@ static void codeCluster(
 		cReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
 		if( cReg!=target+i )
 		{
+		  printf("checking for op_copy \n");
 		  sqlite3VdbeAddOp2(pParse->pVdbe, pDest->eDest? OP_Copy : OP_SCopy, cReg, target+i);
 		}
 	}
+
+	// Rewind oldCentroids
+    int addr = sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
+
+	//Loading column for k rows for oldCentroids
+	int oldCentroidIndex = i;
+	for (j = 0; j < nColumnInClusterBy; j++)
+	{
+		sqlite3VdbeAddOp3(v, OP_Column, oldCentroids, j, target + i++);
+	}
+
+	pDef = sqlite3FindFunction(db, fDefName, fDefLength, -1, enc, 0); // -1 to indicate variable no. of arguments
+	if (pDef == 0)
+	{
+		printf("function NOT found \n");
+	}
+
+	// Adding the function call
+	pc = sqlite3VdbeAddOp3(v, OP_Function, 0, target, target + i);
+	sqlite3VdbeChangeP5(v, (u8)(nColumnInClusterBy * 2));
+	sqlite3VdbeChangeP4(v, -1, (char*)pDef, P4_FUNCDEF);
+
+	int minDistanceNextAddress = pc + 4;
+	int functionResult = i++;
+
+	// if (minDistanceReg > (target + functionResult)) then go to minDistanceNextAddress
+	sqlite3VdbeAddOp3(v, OP_Gt, minDistanceReg, minDistanceNextAddress, target + functionResult);
+
+	// Updating the MinDistanceReg to its new value return by functionResult
+	sqlite3VdbeAddOp2(v, OP_Copy, functionResult, minDistanceReg);
+
+	// Updating the minRowIDReg of the current row
+	sqlite3VdbeAddOp2(v, OP_Rowid, oldCentroids, minRowIdReg);
+
+	//Go to the next row in OldCentroids
+	sqlite3VdbeAddOp2(v, OP_Next, oldCentroids, addr+1);
+
+	// Seek to the corresponding cluster in newCentroids
+	sqlite3VdbeAddOp2(v, OP_Seek, newCentroids, minRowIdReg);
+
+	//Loading column for k rows for newCentroids
+	int newCentroidIndex = i;
+	for (j = 0; j < nColumnInClusterBy + 1; j++)
+	{
+		sqlite3VdbeAddOp3(v, OP_Column, newCentroids, j, target + i++);
+	}
+
+	//Adding to distance
+	for (j = 0; j < nColumnInClusterBy; j++)
+	{
+		sqlite3VdbeAddOp3(v, OP_Add, target + newCentroidIndex + j, target + j, target + newCentroidIndex + j);
+	}
+
+    sqlite3VdbeAddOp2(v, OP_AddImm, target + newCentroidIndex + j, 1);
+
+
+    // Inserting row into newCentroid
+    sqlite3VdbeAddOp3(v, OP_MakeRecord, target + newCentroidIndex, nColumnInClusterBy+1, newRecordDest);
+    //sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
+    pc = sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, minRowIdReg);
+
+    //Go to the next row in OldCentroids
+    sqlite3VdbeAddOp2(v, OP_Next, sourceTable, nextSourceTbAddress + 1);
+
+    // Rewind oldCentroids
+    int errorCheckAddress = sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
+    // Rewind oldCentroids
+    int errorCheckAddress2 = sqlite3VdbeAddOp2(v, OP_Rewind, newCentroids, 0);
+
+
+	//Loading column for k rows for oldCentroids to compare with newCentroids
+	int oldCentroidsErrorStart = i;
+	for (j = 0; j < nColumnInClusterBy; j++)
+	{
+		sqlite3VdbeAddOp3(v, OP_Column, oldCentroids, j, target + i++);
+	}
+
+    //Loading column for k rows for oldCentroids to compare with newCentroids
+    int newCentroidsErrorStart = i;
+    for (j = 0; j < nColumnInClusterBy + 1; j++)
+    {
+    	sqlite3VdbeAddOp3(v, OP_Column, newCentroids, j, target + i++);
+    }
+
+	for (j = 0; j < nColumnInClusterBy; j++)
+	{
+		sqlite3VdbeAddOp3(v, OP_Divide, target + newCentroidsErrorStart + j,
+				target + newCentroidsErrorStart + nColumnInClusterBy,
+				target + newCentroidsErrorStart + j);
+	}
+
+
+	//Computing the distance of per pair of row and storing the values in distanceResult
+	int distanceResult = i;
+	pc = sqlite3VdbeAddOp3(v, OP_Function, 0, target + oldCentroidsErrorStart, target + distanceResult);
+	sqlite3VdbeChangeP5(v, (u8)(nColumnInClusterBy * 2));
+	sqlite3VdbeChangeP4(v, -1, (char*)pDef, P4_FUNCDEF);
+
+	 // Inserting row into newCentroid
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, target + newCentroidsErrorStart, nColumnInClusterBy, newRecordDest);
+	sqlite3VdbeAddOp2(v, OP_Rowid, newCentroids, newRowId);
+	pc = sqlite3VdbeAddOp3(v, OP_Insert, oldCentroids, newRecordDest, newRowId);
+
+	// Checking if distance < threshold, then ...
+	sqlite3VdbeAddOp3(v, OP_Lt, distanceResult, pc + 3, thresholdReg);
+
+	// Incrementing the flag
+	int  immediateNextIdx = sqlite3VdbeAddOp2(v, OP_AddImm, pendingClusterCounterReg,1);
+
+	// Next for oldCentroids
+	sqlite3VdbeAddOp2(v, OP_Next, oldCentroids, immediateNextIdx + 2);
+
+	// Next for newCentroids
+	int end  = sqlite3VdbeAddOp2(v, OP_Next, newCentroids, errorCheckAddress2 + 1);
+
+	// If at least one cluster hasn't converge, then we need to run the algorithm again
+	sqlite3VdbeAddOp2(v, OP_IfZero, pendingClusterCounterReg, end + 6);
+
+	// rewind all tables
+	sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
+	sqlite3VdbeAddOp2(v, OP_Rewind, newCentroids, 0);
+	sqlite3VdbeAddOp2(v, OP_Rewind, sourceTable, 0);
+
+	// The clusters haven't converged, so we need to repeat the hole thing
+	sqlite3VdbeAddOp2(v, OP_Goto, 0, bigLoopBegin);
 
 	// Closing old ephemeral table
 	sqlite3VdbeAddOp2(v, OP_Close, oldCentroids, 0);
 
 	// TODO Closing new ephemeral table. Should we done after innerLoop()
 	sqlite3VdbeAddOp2(v, OP_Close, newCentroids, 0);
-
 
 	// End the database scan loop. Close Table and Next
 	sqlite3WhereEnd(pWhereInfo);
