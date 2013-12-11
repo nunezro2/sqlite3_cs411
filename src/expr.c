@@ -2220,16 +2220,16 @@ void sqlite3ExprCodeGetColumnOfTable(
 ){
   if( iCol<0 || iCol==pTab->iPKey ){
     sqlite3VdbeAddOp2(v, OP_Rowid, iTabCur, regOut);
-    printf("Check 1\n");
+    //printf("Check 1\n");
   }else{
     int op = IsVirtual(pTab) ? OP_VColumn : OP_Column;
     sqlite3VdbeAddOp3(v, op, iTabCur, iCol, regOut);
-    printf("Check 2\n");
+    //printf("Check 2\n");
 
   }
   if( iCol>=0 ){
     sqlite3ColumnDefault(v, pTab, iCol, regOut);
-    printf("Check 3\n");
+    //printf("Check 3\n");
   }
 }
 
@@ -2257,7 +2257,7 @@ int sqlite3ExprCodeGetColumn(
 
   for(i=0, p=pParse->aColCache; i<SQLITE_N_COLCACHE; i++, p++){
     if( p->iReg>0 && p->iTable==iTable && p->iColumn==iColumn ){
-    	printf("CheckGetColumn 1\n");
+    	//printf("CheckGetColumn 1\n");
       p->lru = pParse->iCacheCnt++;
       sqlite3ExprCachePinRegister(pParse, p->iReg);
       return p->iReg;
@@ -2269,11 +2269,11 @@ int sqlite3ExprCodeGetColumn(
   sqlite3ExprCodeGetColumnOfTable(v, pTab, iTable, iColumn, iReg);
   if( p5 ){
     sqlite3VdbeChangeP5(v, p5);
-	printf("CheckGetColumn 2\n");
+	//printf("CheckGetColumn 2\n");
 
   }else{   
-    sqlite3ExprCacheStore(pParse, iTable, iColumn, iReg);
-	printf("CheckGetColumn 3\n");
+    //sqlite3ExprCacheStore(pParse, iTable, iColumn, iReg);
+	//printf("CheckGetColumn 3\n");
 
   }
   return iReg;
@@ -2378,7 +2378,7 @@ int sqlite3ExprCodeTarget(Parse *pParse, Expr *pExpr, int target){
   }else{
     op = pExpr->op;
   }
-  printf("Hey 6: %d\n", op);
+  //printf("Hey 6: %d\n", op);
   switch( op ){
     case TK_AGG_COLUMN: {
       AggInfo *pAggInfo = pExpr->pAggInfo;
@@ -2410,11 +2410,11 @@ int sqlite3ExprCodeTarget(Parse *pParse, Expr *pExpr, int target){
       inReg = sqlite3ExprCodeGetColumn(pParse, pExpr->pTab,
                                pExpr->iColumn, iTab, target,
                                pExpr->op2);
-      printf("inReg: %d  iColumn%d\n", inReg, pExpr->iColumn);
+      //printf("inReg: %d  iColumn%d\n", inReg, pExpr->iColumn);
       break;
     }
     case TK_INTEGER: {
-      printf("Hey 8: %d\n", op);
+      //printf("Hey 8: %d\n", op);
       codeInteger(pParse, pExpr, 0, target);
       break;
     }
@@ -3494,12 +3494,12 @@ int sqlite3ExprCodeExprList(
   assert( target>0 );
   assert( pParse->pVdbe!=0 );  /* Never gets this far otherwise */
   n = pList->nExpr;
-  printf("hey 7: %d\n", n);
+//  printf("hey 7: %d\n", n);
   for(pItem=pList->a, i=0; i<n; i++, pItem++){
     Expr *pExpr = pItem->pExpr;
     int inReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
     if( inReg!=target+i ){
-    printf("hey 5\n");
+ //   printf("hey 5\n");
       sqlite3VdbeAddOp2(pParse->pVdbe, doHardCopy ? OP_Copy : OP_SCopy,
                         inReg, target+i);
     }

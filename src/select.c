@@ -586,8 +586,9 @@ static void codeCluster(
 	int k = pCluster->a[0].pExpr->u.iValue;
 	int nColumnInClusterBy = pCluster->nExpr -1;
 	int cReg;
-	int i = 0;
+	int i = 1; // registers start at 1
 	int j = 0;
+	int q = 0;
 	int oldCentroids;
 	int newCentroids;
 	int pc;
@@ -595,6 +596,7 @@ static void codeCluster(
 
 	// Creating the register containing the value of k
     int kRegister = sqlite3GetTempReg(pParse);
+    i++;
     char str[15];
     sprintf(str, "%d", k);
     Expr *kExpr =  sqlite3Expr(db,TK_INTEGER, str);
@@ -602,29 +604,39 @@ static void codeCluster(
 
     // Creating the register for the accumulator, initialized with value 1
     int counterRegister = sqlite3GetTempReg(pParse);
+    i++;
     Expr *counterExpr =  sqlite3Expr(db,TK_INTEGER, "1");
     sqlite3ExprCodeTarget(pParse, counterExpr, counterRegister);
 
     // Creating the register to hold the minimum distance register
     int minDistanceReg = sqlite3GetTempReg(pParse);
-    Expr *minDistanceExpr = sqlite3Expr(db,TK_INTEGER, "0");
+    i++;
+    Expr *minDistanceExpr = sqlite3Expr(db,TK_INTEGER, "32000");
     sqlite3ExprCodeTarget(pParse, minDistanceExpr, minDistanceReg);
 
     //Creating a register to hold the minimum RowID
     int minRowIdReg = sqlite3GetTempReg(pParse);
+    i++;
     Expr *minRowIdRegExpr = sqlite3Expr(db,TK_INTEGER, "-1");
     sqlite3ExprCodeTarget(pParse, minRowIdRegExpr, minRowIdReg);
 
     //Creating a register to hold the threshold
     int thresholdReg = sqlite3GetTempReg(pParse);
+    i++;
     Expr *thresholdRegExpr = sqlite3Expr(db,TK_INTEGER, "1");
     sqlite3ExprCodeTarget(pParse, thresholdRegExpr, thresholdReg);
 
     //Creating a register to hold the number of cluster that haven't converged
     int pendingClusterCounterReg = sqlite3GetTempReg(pParse);
+    i++;
     Expr *pendingClusterCounterRegExpr = sqlite3Expr(db,TK_INTEGER, "0");
     sqlite3ExprCodeTarget(pParse, pendingClusterCounterRegExpr, pendingClusterCounterReg);
 
+
+	// temporary registers to hold information of the new record location and the new RowID
+	int newRecordDest = sqlite3GetTempReg(pParse);
+    int newRowId = sqlite3GetTempReg(pParse);
+    i+=2;
 
     // Creating expression for value 1
     Expr *oneExpr =  sqlite3Expr(db,TK_INTEGER, "1");
@@ -643,9 +655,9 @@ static void codeCluster(
 	//Adding an INTEGER to the list of Expresion in pCluster. This will be used to be inserted
 	// in the the newCentroids ephemeral table
 	pCluster = sqlite3ExprListAppend(pParse, pCluster, sqlite3Expr(db,TK_INTEGER,"1"));
-
+	int loadColumnStart = i;
 	// Iterating through the columns
-	for(pItem=pCluster->a+1, i=0; i< (nColumnInClusterBy + 1); i++, pItem++)
+	for(pItem=pCluster->a+1, q = 0;q < (nColumnInClusterBy + 1); q++, i++, pItem++)
 	{
 		Expr *pExpr = pItem->pExpr;
 		if (pExpr->op != TK_INTEGER)
@@ -664,18 +676,14 @@ static void codeCluster(
 	      sqlite3VdbeAddOp2(pParse->pVdbe, pDest->eDest? OP_Copy : OP_SCopy, cReg, target+i);
 	    }
 	}
-
-	// temporary registers to hold information of the new record location and the new RowID
-	int newRecordDest = sqlite3GetTempReg(pParse);
-    int newRowId = sqlite3GetTempReg(pParse);
-
+	//printf("After first look\n");
     // Inserting row into oldCentroid
-	sqlite3VdbeAddOp3(v, OP_MakeRecord, target, nColumnInClusterBy, newRecordDest);
+	sqlite3VdbeAddOp3(v, OP_MakeRecord, target + loadColumnStart, nColumnInClusterBy, newRecordDest);
     sqlite3VdbeAddOp2(v, OP_NewRowid, oldCentroids, newRowId);
     sqlite3VdbeAddOp3(v, OP_Insert, oldCentroids, newRecordDest, newRowId);
 
     // Inserting row into newCentroid
-    sqlite3VdbeAddOp3(v, OP_MakeRecord, target, nColumnInClusterBy+1, newRecordDest);
+    sqlite3VdbeAddOp3(v, OP_MakeRecord, target + loadColumnStart, nColumnInClusterBy+1, newRecordDest);
     //sqlite3VdbeAddOp2(v, OP_NewRowid, newCentroids, newRowId);
     int bigLoopBegin = sqlite3VdbeAddOp3(v, OP_Insert, newCentroids, newRecordDest, newRowId);
     bigLoopBegin += 4;
@@ -690,9 +698,10 @@ static void codeCluster(
     // ------------------------------- Up to here, we have initialized all the tables and values
 
     // Iterating through the columns in the main table
-	for(pItem=pCluster->a+1, k=0; k < nColumnInClusterBy; k++, i++, pItem++)
+    loadColumnStart = i;
+	for(pItem=pCluster->a+1, q=0; q < nColumnInClusterBy; q++, i++, pItem++)
 	{
-		printf("Nexpr %d\n", pCluster->nExpr - 2);
+		//printf("Nexpr %d\n", pCluster->nExpr - 2);
 		Expr *pExpr = pItem->pExpr;
 		for (j = 0; j < p->pEList->nExpr; j++)
 		{
@@ -706,13 +715,14 @@ static void codeCluster(
 		cReg = sqlite3ExprCodeTarget(pParse, pExpr, target+i);
 		if( cReg!=target+i )
 		{
-		  printf("checking for op_copy \n");
+		  //printf("checking for op_copy \n");
 		  sqlite3VdbeAddOp2(pParse->pVdbe, pDest->eDest? OP_Copy : OP_SCopy, cReg, target+i);
 		}
 	}
-
+	//printf("after second loop\n");
 	// Rewind oldCentroids
     int addr = sqlite3VdbeAddOp2(v, OP_Rewind, oldCentroids, 0);
+
 
 	//Loading column for k rows for oldCentroids
 	int oldCentroidIndex = i;
@@ -728,7 +738,7 @@ static void codeCluster(
 	}
 
 	// Adding the function call
-	pc = sqlite3VdbeAddOp3(v, OP_Function, 0, target, target + i);
+	pc = sqlite3VdbeAddOp3(v, OP_Function, 0, target +  loadColumnStart, target + i);
 	sqlite3VdbeChangeP5(v, (u8)(nColumnInClusterBy * 2));
 	sqlite3VdbeChangeP4(v, -1, (char*)pDef, P4_FUNCDEF);
 
@@ -844,7 +854,7 @@ static void codeCluster(
 
 	// End the database scan loop. Close Table and Next
 	sqlite3WhereEnd(pWhereInfo);
-	printf("End of CodeCluster()\n");
+	printf("End of CodeCluster() function\n");
 }
 
 /*
@@ -880,7 +890,7 @@ static void selectInnerLoop(
 
   if(p->pClusterBy)
   {
-  	//pEList = sqlite3ExprListAppend(pParse, pEList, sqlite3Expr(db,TK_INTEGER,"1"));
+  	pEList = sqlite3ExprListAppend(pParse, pEList, sqlite3Expr(db,TK_INTEGER,"1"));
   }
 
   assert( v );
@@ -890,6 +900,7 @@ static void selectInnerLoop(
   if( pOrderBy==0 && !hasDistinct ){
     codeOffset(v, p, iContinue);
   }
+  /*
   if (cluster){
 	  for (i = 0; i < pEList->nExpr; i++) {
 		  if (pEList->a[i].pExpr) {
@@ -900,6 +911,7 @@ static void selectInnerLoop(
 		  }
 	  }
   }
+  */
   /* Pull the requested columns.
   */
   if( nColumn>0 ){
@@ -908,7 +920,6 @@ static void selectInnerLoop(
     nResultCol = pEList->nExpr;
   }
 
-  // if CLUSTER BY, then add nresultcol++
   if( pDest->iSdst==0 ){
     pDest->iSdst = pParse->nMem+1;
     pDest->nSdst = nResultCol;
@@ -917,7 +928,7 @@ static void selectInnerLoop(
     assert( pDest->nSdst==nResultCol );
   }
   regResult = pDest->iSdst;
-  printf("Hey 1: %d\n", nResultCol);
+  //printf("Hey 1: %d\n", nResultCol);
   if( nColumn>0 ){
     for(i=0; i<nColumn; i++){
       sqlite3VdbeAddOp3(v, OP_Column, srcTab, i, regResult+i);
@@ -930,7 +941,7 @@ static void selectInnerLoop(
     sqlite3ExprCacheClear(pParse);
 
     sqlite3ExprCodeExprList(pParse, pEList, regResult, eDest==SRT_Output);
-    printf("Hey 2\n");
+    //printf("Hey 2\n");
 
   }
   nColumn = nResultCol;
@@ -1108,7 +1119,7 @@ static void selectInnerLoop(
         sqlite3VdbeAddOp1(v, OP_Yield, pDest->iSDParm);
       }else{
     	  // Here's out code
-    	  printf("hey 4  %d\n", nColumn);
+    	//  printf("hey 4  %d\n", nColumn);
         sqlite3VdbeAddOp2(v, OP_ResultRow, regResult, nColumn);
         sqlite3ExprCacheAffinityChange(pParse, regResult, nColumn);
       }

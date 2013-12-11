@@ -677,7 +677,7 @@ int sqlite3VdbeExec(
       memAboutToChange(p, &aMem[pOp->p3]);
     }
 #endif
-  
+    //printf("Executing: %d \n", pOp->opcode);
     switch( pOp->opcode ){
 
 /*****************************************************************************
@@ -1172,7 +1172,7 @@ case OP_ResultRow: {
   ** a side effect.
   */
   pMem = p->pResultSet = &aMem[pOp->p1];
-  printf("%d\n", pOp->p2);
+  //printf("%d\n", pOp->p2);
   for(i=0; i<pOp->p2; i++)
   {
     assert( memIsValid(&pMem[i]) );
@@ -2224,6 +2224,7 @@ case OP_Column: {
   if( pCrsr!=0 ){
     /* The record is stored in a B-Tree */
     rc = sqlite3VdbeCursorMoveto(pC);
+    //printf("op_column rc %d\n", rc);
     if( rc ) goto abort_due_to_error;
     if( pC->nullRow ){
       payloadSize = 0;
@@ -4346,6 +4347,7 @@ case OP_Rowid: {                 /* out2-prerelease */
   }else{
     assert( pC->pCursor!=0 );
     rc = sqlite3VdbeCursorMoveto(pC);
+    //printf("Rowid rc: %d \n", rc);
     if( rc ) goto abort_due_to_error;
     if( pC->rowidIsValid ){
       v = pC->lastRowid;

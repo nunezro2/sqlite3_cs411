@@ -291,7 +291,7 @@ static FuncDef *functionSearch(
 ){
   FuncDef *p;
   for(p=pHash->a[h]; p; p=p->pHash){
-	printf("Function name [%s] [%s]\n", p->zName, zFunc);
+	//printf("Function name [%s] [%s]\n", p->zName, zFunc);
     if( sqlite3StrNICmp(p->zName, zFunc, nFunc)==0 && p->zName[nFunc]==0 ){
       return p;
     }
@@ -364,10 +364,11 @@ FuncDef *sqlite3FindFunction(
   /* First search for a match amongst the application-defined functions.
   */
   p = functionSearch(&db->aFunc, h, zName, nName);
-  if (p == 0)
-  	printf("functionSearch returned null \n");
-  else
-  	  printf("functionSearch returned NON null value \n");
+  if (p == 0){
+  	//printf("functionSearch returned null \n");
+  }else{
+  	  //printf("functionSearch returned NON null value \n");
+  }
   while( p ){
     int score = matchQuality(p, nArg, enc);
     if( score>bestScore ){
@@ -393,13 +394,14 @@ FuncDef *sqlite3FindFunction(
     FuncDefHash *pHash = &GLOBAL(FuncDefHash, sqlite3GlobalFunctions);
     bestScore = 0;
     p = functionSearch(pHash, h, zName, nName);
-    if (p == 0)
-    	printf("functionSearch2 returned null \n");
-    else
-    	  printf("functionSearch2 returned NON null value \n");
+    if (p == 0){
+    //	printf("functionSearch2 returned null \n");
+    }else{
+    //	  printf("functionSearch2 returned NON null value \n");
+    }
     while( p ){
       int score = matchQuality(p, nArg, enc);
-      printf("score %d \n", score);
+    //  printf("score %d \n", score);
       if( score>bestScore ){
         pBest = p;
         bestScore = score;
@@ -408,11 +410,11 @@ FuncDef *sqlite3FindFunction(
     }
   }
 
-  if (pBest == 0)
-      printf("pBest is null \n");
-   else
-      printf("pBest is  NON null value \n");
-
+  if (pBest == 0){
+  //    printf("pBest is null \n");
+  }else {
+    //  printf("pBest is  NON null value \n");
+  }
 
   /* If the createFlag parameter is true and the search did not reveal an
   ** exact match for the name, number of arguments and encoding, then add a
@@ -428,18 +430,18 @@ FuncDef *sqlite3FindFunction(
     sqlite3FuncDefInsert(&db->aFunc, pBest);
   }
   if(pBest && pBest->xFunc==0){
-		printf("xfunc null \n");
+	//	printf("xfunc null \n");
   }
   if(pBest && pBest->xStep==0){
-		printf("xstep null \n");
+//		printf("xstep null \n");
   }
 
 
-  if (pBest == 0)
-      printf("pBest2 is null \n");
-   else
-      printf("pBest2 is  NON null value \n");
-
+  if (pBest == 0){
+   //   printf("pBest2 is null \n");
+  } else{
+    //  printf("pBest2 is  NON null value \n");
+  }
   if( pBest && (pBest->xStep || pBest->xFunc || createFlag) ){
     return pBest;
   }

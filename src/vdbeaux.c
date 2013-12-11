@@ -2558,6 +2558,7 @@ void sqlite3VdbeDelete(Vdbe *p){
 ** not been deleted out from under the cursor, then this routine is a no-op.
 */
 int sqlite3VdbeCursorMoveto(VdbeCursor *p){
+	//printf("moving cursor \n");
   if( p->deferredMoveto ){
     int res, rc;
 #ifdef SQLITE_TEST
