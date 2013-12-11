@@ -1190,26 +1190,23 @@ static void eDistanceFunc(
   int argc,
   sqlite3_value **argv
 ){
-  //struct info *param;
-  //const char *msg;
-  //param = sqlite3_my_context(context, sizeof(*param));
   int i;
-  int acum = 0;
+  double acum = 0;
 
-  //printf("No. of arguments %d\n", argc);
+  printf("No. of arguments %d\n", argc);
   if (argc > 1)
   {
 	  for (i = 0; i < argc/2; i++)
 	  {
-		  printf("Computing %d %d\n", sqlite3_value_int(argv[i]), sqlite3_value_int(argv[i + argc/2]));
-		  int temp = sqlite3_value_int(argv[i]) - ( sqlite3_value_int(argv[i + argc/2]));
+		  printf("Computing %f %f\n", sqlite3_value_double(argv[i]), sqlite3_value_double(argv[i + argc/2]));
+		  double temp = sqlite3_value_double(argv[i]) - ( sqlite3_value_double(argv[i + argc/2]));
 		  acum += (temp)*(temp);
 	  }
   }
 
-  printf("acum: %d \n", acum)	;
+  printf("acum: %f \n", acum)	;
   //if (param == NULL)
-  sqlite3_result_int(context, acum);
+  sqlite3_result_double(context, acum);
 
 
   //sqlite3_result_text(context, msg, strlen(msg), sqlite3_free);
